@@ -1,10 +1,12 @@
 
 name: Build Android APK
 
-on:
+'on':
   workflow_dispatch:
   push:
-    branches: [master, main]
+    branches:
+      - master
+      - main
 
 permissions:
   contents: read
@@ -21,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -29,8 +31,8 @@ jobs:
       - name: Accept SDK licenses
         run: yes | sdkmanager --licenses
 
-      - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Android packages
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
