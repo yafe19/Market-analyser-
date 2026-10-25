@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICT Trading Assistant</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#141f30;--line:#28384d;--green:#42d392;--red:#ff647c;--blue:#70a7ff;--text:#edf3ff;--muted:#a6b5ca}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px Arial,sans-serif}
+header{padding:20px;background:#111c2d;border-bottom:1px solid var(--line)}
+h1{font-size:22px;margin:0 0 7px}p{line-height:1.5}
+.muted{color:var(--muted);font-size:13px}
+main{padding:14px;max-width:760px;margin:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:14px}
+h2{font-size:16px;margin:0 0 14px}
+.row{display:flex;gap:9px;flex-wrap:wrap}
+button,select,input{font:inherit;border-radius:9px;padding:11px;border:1px solid var(--line);background:#0d1727;color:var(--text)}
+button{background:#225b49;border:0;font-weight:bold}
+button.secondary{background:#26364d}
+button:active{opacity:.7}
+.stat{flex:1;min-width:120px;background:#0d1727;padding:12px;border-radius:10px}
+.stat strong{display:block;font-size:19px;margin-top:7px}
+.green{color:var(--green)}.red{color:var(--red)}.blue{color:var(--blue)}
+label{display:block;color:var(--muted);font-size:13px;margin:12px 0 5px}
+input,select{width:100%}
+.bar{height:8px;background:#26364d;border-radius:8px;overflow:hidden;margin:12px 0}
+#progress{height:100%;width:0;background:var(--green)}
+canvas{width:100%;height:240px;background:#0d1727;border-radius:10px}
+ul{padding-left:20px;line-height:1.8}
+footer{padding:12px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>📊 ICT Trading Assistant</h1>
+  <div class="muted">BTC market structure · Liquidity · Risk management</div>
+</header>
+<main>
+  <div class="card">
+    <h2>Market data</h2>
+    <div class="row">
+      <div class="stat"><span class="muted">BTCUSDT price</span><strong id="price">Loading…</strong></div>
+      <div class="stat"><span class="muted">24h change</span><strong id="change">—</strong></div>
+    </div>
+    <label for="tf">Analysis timeframe</label>
+    <select id="tf">
+      <option value="15m">15 minutes</option>
+      <option value="1h">1 hour</option>
+      <option value="4h">4 hours</option>
+      <option value="1d">1 day</option>
+    </select>
+    <div class="row" style="margin-top:12px">
+      <button onclick="loadData()">Refresh analysis</button>
+      <button class="secondary" onclick="exportText()">Export report</button>
+    </div>
+    <p class="muted" id="status">Connecting to Binance public market data…</p>
+  </div>
+
+  <div class="card">
+    <h2>BTC candlestick-style overview</h2>
+    <canvas id="chart" width="700" height="300"></canvas>
+    <p class="muted">Recent candle highs and lows. This simplified chart is for study, not order execution.</p>
+  </div>
+
+  <div class="card">
+    <h2>ICT structure analysis</h2>
+    <div class="row">
+      <div class="stat"><span class="muted">Recent high</span><strong id="high">—</strong></div>
+      <div class="stat"><span class="muted">Recent low</span><strong id="low">—</strong></div>
+    </div>
+    <p><b>Market structure:</b> <span id="structure">Waiting for data</span></p>
+    <p><b>Liquidity:</b> <span id="liquidity">Waiting for data</span></p>
+    <p><b>FVG:</b> <span id="fvg">Waiting for data</span></p>
+    <p><b>Order block:</b> <span id="ob">Waiting for data</span></p>
+    <p class="muted">These are simplified rule-based observations. Confirm manually on your chart.</p>
+  </div>
+
+  <div class="card">
+    <h2>Trade planning calculator</h2>
+    <label for="balance">Demo account balance ($)</label>
+    <input id="balance" type="number" value="1000" min="0" step="any">
+    <label for="risk">Risk per trade (%)</label>
+    <input id="risk" type="number" value="1" min="0.1" max="2" step="0.1">
+    <label for="entry">Planned entry price</label>
+    <input id="entry" type="number" placeholder="Enter your planned price">
+    <label for="stop">Stop-loss price</label>
+    <input id="stop" type="number" placeholder="Enter your stop-loss">
+    <label for="target">Take-profit price</label>
+    <input id="target" type="number" placeholder="Enter your take-profit">
+    <button style="margin-top:14px" onclick="calculate()">Calculate risk</button>
+    <div id="result" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Beginner confirmation checklist</h2>
+    <ul>
+      <li><input type="checkbox"> Identify higher-timeframe direction.</li>
+      <li><input type="checkbox"> Mark buy-side and sell-side liquidity.</li>
+      <li><input type="checkbox"> Wait for a liquidity sweep.</li>
+      <li><input type="checkbox"> Look for a clear MSS/BOS confirmation.</li>
+      <li><input type="checkbox"> Confirm entry area and stop-loss placement.</li>
+      <li><input type="checkbox"> Keep risk small; skip unclear setups.</li>
+    </ul>
+    <p><b>Discipline:</b> No confirmation means no trade.</p>
+  </div>
+</main>
+<footer>Educational tool only · Binance BTCUSDT is a proxy for BTCUSD · Not financial advice</footer>
+
+<script>
+let candles=[], report='';
+const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+async function loadData(){
+ const status=document.getElementById('status');
+ status.textContent='Loading latest public BTCUSDT data…';
+ try{
+  const tf=document.getElementById('tf').value;
+  const urls=[
+   'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval='+tf+'&limit=100',
+   'https://api.binance.us/api/v3/klines?symbol=BTCUSDT&interval='+tf+'&limit=100'
+  ];
+  let response;
+  for(const url of urls){
+   try{const r=await fetch(url);if(r.ok){response=r;break;}}catch(e){}
+  }
+  if(!response)throw Error('Market data service unavailable. Check your internet connection.');
+  candles=(await response.json()).map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4]}));
+  if(candles.length<10)throw Error('Not enough candles received.');
+  const last=candles[candles.length-1], first=candles[0];
+  document.getElementById('price').textContent='$'+fmt(last.c);
+  const change=(last.c-first.o)/first.o*100;
+  const ce=document.getElementById('change');
+  ce.textContent=(change>=0?'+':'')+change.toFixed(2)+'%';
+  ce.className=change>=0?'green':'red';
+  analyze();drawChart();
+  status.textContent='Updated '+new Date().toLocaleTimeString()+' · Public Binance data · '+tf;
+ }catch(e){
+  status.textContent=e.message+' You can still use the manual risk calculator.';
+  document.getElementById('price').textContent='Unavailable';
+ }
+}
+function analyze(){
+ const c=candles, last=c[c.length-1];
+ const recent=c.slice(-20), hi=Math.max(...recent.map(x=>x.h)),lo=Math.min(...recent.map(x=>x.l));
+ document.getElementById('high').textContent='$'+fmt(hi);
+ document.getElementById('low').textContent='$'+fmt(lo);
+ let prevHigh=Math.max(...c.slice(-10,-1).map(x=>x.h));
+ let prevLow=Math.min(...c.slice(-10,-1).map(x=>x.l));
+ let structure='No clear break in recent candles';
+ if(last.c>prevHigh)structure='Possible bullish structure break — verify MSS';
+ else if(last.c<prevLow)structure='Possible bearish structure break — verify MSS';
+ document.getElementById('structure').textContent=structure;
+ document.getElementById('liquidity').textContent='Recent range BSL near $'+fmt(hi)+'; SSL near $'+fmt(lo)+'. Sweeps require candle confirmation.';
+ let gap='No obvious 3-candle gap detected';
+ for(let i=c.length-1;i>=Math.max(2,c.length-15);i--){
+  if(c[i].l>c[i-2].h){gap='Possible bullish FVG: $'+fmt(c[i-2].h)+' – $'+fmt(c[i].l);break;}
+  if(c[i].h<c[i-2].l){gap='Possible bearish FVG: $'+fmt(c[i].h)+' – $'+fmt(c[i-2].l);break;}
+ }
+ document.getElementById('fvg').textContent=gap;
+ document.getElementById('ob').textContent='Potential order blocks need manual review of the last opposing candle before displacement.';
+ report='ICT Trading Assistant report\nPrice: '+last.c+'\nTimeframe: '+document.getElementById('tf').value+'\nStructure: '+structure+'\nRange high: '+hi+'\nRange low: '+lo+'\nLiquidity: '+document.getElementById('liquidity').textContent+'\nFVG: '+gap+'\nEducational observations only.';
+}
+function drawChart(){
+ const cv=document.getElementById('chart'),ctx=cv.getContext('2d');
+ const w=cv.width,h=cv.height;candles.length||loadData();
+ ctx.clearRect(0,0,w,h);
+ if(!candles.length)return;
+ const data=candles.slice(-40),max=Math.max(...data.map(x=>x.h)),min=Math.min(...data.map(x=>x.l));
+ const pad=20,scale=(h-2*pad)/(max-min||1),step=(w-2*pad)/data.length;
+ ctx.strokeStyle='#28384d';ctx.lineWidth=1;
+ for(let i=0;i<5;i++){let y=pad+i*(h-2*pad)/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+ data.forEach((c,i)=>{
+  const x=pad+i*step+step/2;
+  const y=v=>h-pad-(v-min)*scale;
+  ctx.strokeStyle=ctx.fillStyle=c.c>=c.o?'#42d392':'#ff647c';
+  ctx.beginPath();ctx.moveTo(x,y(c.h));ctx.lineTo(x,y(c.l));ctx.stroke();
+  const top=y(Math.max(c.o,c.c)),bottom=y(Math.min(c.o,c.c));
+  ctx.fillRect(x-step*.3,top,Math.max(2,step*.6),Math.max(2,bottom-top));
+ });
+}
+function calculate(){
+ const b=+document.getElementById('balance').value,r=+document.getElementById('risk').value;
+ const e=+document.getElementById('entry').value,s=+document.getElementById('stop').value,t=+document.getElementById('target').value;
+ const out=document.getElementById('result');
+ if(!(b>0&&r>0&&r<=2&&e>0&&s>0&&t>0)||e===s){out.textContent='Enter valid positive values. Risk must be 2% or less.';return;}
+ const risk=b*r/100,dist=Math.abs(e-s),reward=Math.abs(t-e);
+ if((e>s&&t<=e)||(e<s&&t>=e)){out.textContent='Check direction: take-profit should be beyond entry in your planned direction.';return;}
+ out.innerHTML='<p>Risk amount: <b class="red">$'+fmt(risk)+'</b></p><p>Stop distance: '+fmt(dist)+' price units</p><p>Reward/risk ratio: <b>'+ (risk&&dist?(reward/dist).toFixed(2):'—')+' : 1</b></p><p>Estimated BTC quantity: '+(risk/dist).toFixed(6)+' BTC, before fees and slippage.</p><p class="muted">This is a simplified estimate, not an exchange-specific contract-size calculation.</p>';
+}
+function exportText(){
+ const content=report+'\n\nRisk calculator values are not included. Verify every observation on your trading platform.';
+ const blob=new Blob([content],{type:'text/plain'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ict-report.txt';a.click();URL.revokeObjectURL(a.href);
+}
+loadData();
+</script>
+</body>
+</html>
